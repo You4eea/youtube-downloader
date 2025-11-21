@@ -35,23 +35,41 @@ def check_files():
             print(f"  - {file}")
         return False
     
-    print("✓ All required files found")
+    print("[OK] All required files found")
     return True
 
 def build_executable():
     """Build the executable using PyInstaller"""
     
-    # Check for optional ffmpeg.exe
-    ffmpeg_binary = ""
+    # Check for optional ffmpeg.exe and DLLs
+    ffmpeg_dlls = []
     if os.path.exists("ffmpeg.exe"):
-        ffmpeg_binary = '--add-binary "ffmpeg.exe;."'
-        print("✓ ffmpeg.exe found - will be bundled")
+        print("[OK] ffmpeg.exe found - will be bundled")
+        # Check for required DLLs in the ffmpeg bin folder
+        ffmpeg_bin_path = "ffmpeg-master-latest-win64-gpl-shared-v7.1.1/bin"
+        required_dlls = [
+            "avcodec-62.dll",
+            "avformat-62.dll",
+            "avutil-60.dll",
+            "avfilter-11.dll",
+            "avdevice-62.dll",
+            "swscale-9.dll",
+            "swresample-6.dll"
+        ]
+        
+        for dll in required_dlls:
+            dll_path = os.path.join(ffmpeg_bin_path, dll)
+            if os.path.exists(dll_path):
+                ffmpeg_dlls.append(dll_path)
+                print(f"[OK] {dll} found - will be bundled")
+            else:
+                print(f"[WARN] {dll} not found in {ffmpeg_bin_path}")
     else:
-        print("⚠ ffmpeg.exe not found - will not be bundled (optional)")
+        print("[INFO] ffmpeg.exe not found - will not be bundled (optional)")
     
     # PyInstaller command
     cmd = [
-        "pyinstaller",
+        sys.executable, "-m", "PyInstaller",
         "--onefile",                    # Single executable file
         "--windowed",                   # No console window
         "--name", "YouTube-Downloader",  # Output name
@@ -60,25 +78,31 @@ def build_executable():
         "youtube-downloader.py"
     ]
     
-    # Add ffmpeg if it exists
-    if ffmpeg_binary:
+    # Add ffmpeg.exe and all DLLs if they exist
+    if os.path.exists("ffmpeg.exe"):
         cmd.insert(-1, "--add-binary")
         cmd.insert(-1, "ffmpeg.exe;.")
+        
+        # Add all ffmpeg DLLs
+        for dll_path in ffmpeg_dlls:
+            dll_name = os.path.basename(dll_path)
+            cmd.insert(-1, "--add-binary")
+            cmd.insert(-1, f"{dll_path};.")
     
     print("\nBuilding executable...")
     print(f"Command: {' '.join(cmd)}\n")
     
     try:
         result = subprocess.run(cmd, check=True)
-        print("\n✓ Build successful!")
+        print("\n[SUCCESS] Build successful!")
         print(f"\nExecutable location: dist/YouTube-Downloader.exe")
         print(f"File size: ~80-140MB (depending on whether ffmpeg is included)")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"\n✗ Build failed with error: {e}")
+        print(f"\n[ERROR] Build failed with error: {e}")
         return False
     except FileNotFoundError:
-        print("\n✗ ERROR: PyInstaller not found!")
+        print("\n[ERROR] PyInstaller not found!")
         print("Please install it with: pip install pyinstaller")
         return False
 

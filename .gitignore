@@ -1,2 +1,31 @@
 # Ignore directories
 00-v1/
+
+# Build artifacts (PyInstaller)
+build/
+dist/
+*.spec
+
+# Large binaries (users should download these themselves)
+yt-dlp.exe
+ffmpeg.exe
+ffmpeg-master-latest-win64-gpl-shared*/
+ffmpeg-master-latest-win64-gpl-shared*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
