@@ -4,7 +4,7 @@
 **Author:** You4eea  
 **License:** Open Source
 
-## Description
+## Description - New
 
 A user-friendly GUI application for downloading YouTube videos using yt-dlp. Features include real-time progress tracking, custom save location selection, automatic video information display, and a clickable folder icon to quickly open the download location.
 
