@@ -73,6 +73,54 @@ python youtube-downloader.py
 5. When complete, view video details in the success message
 6. Click the folder icon (📁) next to "Location:" to open the file location
 
+## Building a Standalone Executable
+
+You can build a single `.exe` file that includes everything needed to run the application (no Python installation required).
+
+### Prerequisites
+
+1. **Install PyInstaller:**
+   ```bash
+   pip install pyinstaller
+   ```
+
+2. **Required Files:**
+   - `youtube-downloader.py`
+   - `yt-dlp.exe` (must be in the same directory)
+
+3. **Optional:**
+   - `ffmpeg.exe` (if you want to bundle it - recommended for best quality)
+
+### Building the Executable
+
+**Option 1: Using the build script (Recommended)**
+```bash
+python build.py
+```
+
+**Option 2: Manual PyInstaller command**
+```bash
+pyinstaller --onefile --windowed --name "YouTube-Downloader" --add-binary "yt-dlp.exe;." youtube-downloader.py
+```
+
+To include ffmpeg (if you have `ffmpeg.exe` in the directory):
+```bash
+pyinstaller --onefile --windowed --name "YouTube-Downloader" --add-binary "yt-dlp.exe;." --add-binary "ffmpeg.exe;." youtube-downloader.py
+```
+
+### Output
+
+- The executable will be created in the `dist/` folder
+- File name: `YouTube-Downloader.exe`
+- File size: ~80-140MB (depending on whether ffmpeg is included)
+- The executable is completely standalone - no Python or dependencies needed
+
+### Notes
+
+- The first run may be slightly slower as PyInstaller extracts files to a temp folder
+- All bundled executables (yt-dlp.exe, ffmpeg.exe) are automatically extracted and used
+- The executable works the same as running the Python script directly
+
 ## yt-dlp Command Reference
 
 For advanced users who want to use yt-dlp directly from the command line:

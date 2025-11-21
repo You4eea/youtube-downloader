@@ -40,12 +40,29 @@ import re
 import sys
 
 class YouTubeDownloader:
+    # Midnight Theme Colors
+    BG_MAIN = "#050814"
+    BG_CARD = "#0d1224"
+    BG_CODE = "#050914"
+    ACCENT = "#5ad0ff"
+    ACCENT_STRONG = "#23a6ff"
+    TEXT_MAIN = "#e4e9ff"
+    TEXT_MUTED = "#8a90b2"
+    BORDER_SUBTLE = "#1b2138"
+    SUCCESS = "#35d399"
+    DANGER = "#ff6b81"
+    TEXT_DARK = "#02030a"
+    
     def __init__(self, root):
         self.root = root
         self.root.title("YouTube Downloader")
         self.root.geometry("800x550")
         self.root.resizable(True, True)
         self.root.minsize(800, 550)
+        self.root.configure(bg=self.BG_CARD)
+        
+        # Configure ttk styles for midnight theme
+        self.setup_styles()
         
         # Variables
         self.download_process = None
@@ -57,94 +74,294 @@ class YouTubeDownloader:
         
         # Create UI
         self.create_widgets()
+    
+    def setup_styles(self):
+        """Configure ttk styles for midnight theme"""
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Progress bar style - deep maroon red fill, no border
+        style.configure("Midnight.Horizontal.TProgressbar",
+                       background="#8B0000",  # Deep maroon red
+                       troughcolor=self.BG_CODE,
+                       borderwidth=0,
+                       relief='flat',
+                       lightcolor="#8B0000",
+                       darkcolor="#8B0000")
+    
+    def create_rounded_rect(self, canvas, x1, y1, x2, y2, radius, **kwargs):
+        """Draw a rounded rectangle (pill shape) on canvas"""
+        fill_color = kwargs.get('fill', '')
+        outline_color = kwargs.get('outline', fill_color)
+        
+        # Draw the middle rectangle
+        canvas.create_rectangle(x1 + radius, y1, x2 - radius, y2, fill=fill_color, outline=fill_color, width=0)
+        
+        # Draw the left semicircle
+        canvas.create_arc(x1, y1, x1 + 2*radius, y2, start=90, extent=180, fill=fill_color, outline=fill_color, width=0, style="pieslice")
+        
+        # Draw the right semicircle
+        canvas.create_arc(x2 - 2*radius, y1, x2, y2, start=270, extent=180, fill=fill_color, outline=fill_color, width=0, style="pieslice")
+    
+    def create_rounded_button(self, parent, text, command, bg_color, hover_color, text_color, width=140, height=40, state="normal"):
+        """Create a rounded button using Canvas (pill-shaped like HTML copy buttons)"""
+        # Create canvas for rounded button
+        canvas = tk.Canvas(
+            parent,
+            width=width,
+            height=height,
+            bg=self.BG_CARD,
+            highlightthickness=0,
+            relief="flat",
+            borderwidth=0
+        )
+        
+        # Draw rounded rectangle (pill shape) - radius is half the height for full pill
+        radius = height // 2
+        
+        # Draw the button background with rounded corners
+        self.create_rounded_rect(canvas, 0, 0, width, height, radius, fill=bg_color, outline=bg_color)
+        button_id = canvas.find_all()  # Get all shapes (the rounded rect parts)
+        
+        # Add text
+        text_id = canvas.create_text(
+            width // 2,
+            height // 2,
+            text=text,
+            fill=text_color,
+            font=("Segoe UI", 11, "bold")
+        )
+        
+        # Store button state and properties
+        canvas.button_bg = bg_color
+        canvas.button_hover = hover_color
+        canvas.button_text_color = text_color
+        canvas.button_state = state
+        canvas.button_command = command
+        canvas.button_width = width
+        canvas.button_height = height
+        canvas.button_radius = radius
+        
+        # Update appearance based on state
+        if state == "disabled":
+            # Redraw with disabled colors
+            canvas.delete("all")
+            self.create_rounded_rect(canvas, 0, 0, width, height, radius, fill=self.BORDER_SUBTLE, outline=self.BORDER_SUBTLE)
+            button_id = canvas.find_all()
+            canvas.create_text(width // 2, height // 2, text=text, fill=self.TEXT_MUTED, font=("Segoe UI", 11, "bold"))
+            canvas.button_bg = self.BORDER_SUBTLE
+        
+        # Click handler
+        def on_click(event):
+            if canvas.button_state == "normal" and canvas.button_command:
+                canvas.button_command()
+        
+        # Hover handlers
+        def on_enter(event):
+            if canvas.button_state == "normal":
+                # Redraw with hover color
+                canvas.delete("all")
+                self.create_rounded_rect(canvas, 0, 0, width, height, radius, fill=hover_color, outline=hover_color)
+                canvas.create_text(width // 2, height // 2, text=text, fill=text_color, font=("Segoe UI", 11, "bold"))
+                canvas.config(cursor="hand2")
+        
+        def on_leave(event):
+            if canvas.button_state == "normal":
+                # Redraw with normal color
+                canvas.delete("all")
+                self.create_rounded_rect(canvas, 0, 0, width, height, radius, fill=canvas.button_bg, outline=canvas.button_bg)
+                canvas.create_text(width // 2, height // 2, text=text, fill=canvas.button_text_color, font=("Segoe UI", 11, "bold"))
+            canvas.config(cursor="")
+        
+        canvas.bind("<Button-1>", on_click)
+        canvas.bind("<Enter>", on_enter)
+        canvas.bind("<Leave>", on_leave)
+        
+        # Method to update button state
+        def update_state(new_state):
+            canvas.button_state = new_state
+            canvas.delete("all")
+            if new_state == "disabled":
+                self.create_rounded_rect(canvas, 0, 0, width, height, radius, fill=self.BORDER_SUBTLE, outline=self.BORDER_SUBTLE)
+                canvas.create_text(width // 2, height // 2, text=text, fill=self.TEXT_MUTED, font=("Segoe UI", 11, "bold"))
+            else:
+                self.create_rounded_rect(canvas, 0, 0, width, height, radius, fill=canvas.button_bg, outline=canvas.button_bg)
+                canvas.create_text(width // 2, height // 2, text=text, fill=canvas.button_text_color, font=("Segoe UI", 11, "bold"))
+        
+        canvas.update_state = update_state
+        
+        return canvas
+    
+    def get_resource_path(self, relative_path):
+        """Get absolute path to resource, works for dev and for PyInstaller"""
+        try:
+            # PyInstaller creates a temp folder and stores path in _MEIPASS
+            base_path = sys._MEIPASS
+        except Exception:
+            # Running as script (not bundled)
+            base_path = os.path.dirname(os.path.abspath(__file__))
+        
+        return os.path.join(base_path, relative_path)
         
     def create_widgets(self):
         # Title
         title_label = tk.Label(
             self.root, 
-            text="YouTube Video Downloader", 
-            font=("Arial", 16, "bold")
+            text="You4eea's Youtube\nVideo Downloader", 
+            font=("Segoe UI", 16, "bold"),
+            bg=self.BG_CARD,
+            fg=self.ACCENT,  # Button blue color
+            justify="center"
         )
         title_label.pack(pady=10)
         
         # URL Input Frame
-        url_frame = tk.Frame(self.root)
+        url_frame = tk.Frame(self.root, bg=self.BG_CARD)
         url_frame.pack(pady=10, padx=20, fill="x")
         
-        tk.Label(url_frame, text="YouTube URL:", font=("Arial", 10)).pack(anchor="w")
-        self.url_entry = tk.Entry(url_frame, font=("Arial", 10), width=50)
+        url_label = tk.Label(
+            url_frame, 
+            text="YouTube URL:", 
+            font=("Segoe UI", 10),
+            bg=self.BG_CARD,
+            fg=self.TEXT_MAIN
+        )
+        url_label.pack(anchor="w")
+        
+        self.url_entry = tk.Entry(
+            url_frame, 
+            font=("Segoe UI", 10), 
+            width=50,
+            bg=self.BG_MAIN,
+            fg=self.TEXT_MAIN,
+            insertbackground=self.ACCENT,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.BORDER_SUBTLE,
+            highlightcolor=self.ACCENT
+        )
         self.url_entry.pack(fill="x", pady=(5, 0))
         
         # Save Location Frame
-        save_frame = tk.Frame(self.root)
+        save_frame = tk.Frame(self.root, bg=self.BG_CARD)
         save_frame.pack(pady=10, padx=20, fill="x")
         
-        tk.Label(save_frame, text="Save Location:", font=("Arial", 10)).pack(anchor="w")
-        location_frame = tk.Frame(save_frame)
+        save_label = tk.Label(
+            save_frame, 
+            text="Save Location:", 
+            font=("Segoe UI", 10),
+            bg=self.BG_CARD,
+            fg=self.TEXT_MAIN
+        )
+        save_label.pack(anchor="w")
+        
+        location_frame = tk.Frame(save_frame, bg=self.BG_CARD)
         location_frame.pack(fill="x", pady=(5, 0))
         
-        self.path_entry = tk.Entry(location_frame, textvariable=self.save_path, font=("Arial", 10), width=40)
+        self.path_entry = tk.Entry(
+            location_frame, 
+            textvariable=self.save_path, 
+            font=("Segoe UI", 10), 
+            width=40,
+            bg=self.BG_MAIN,
+            fg=self.TEXT_MAIN,
+            insertbackground=self.ACCENT,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.BORDER_SUBTLE,
+            highlightcolor=self.ACCENT
+        )
         self.path_entry.pack(side="left", fill="x", expand=True)
         
         browse_btn = tk.Button(
             location_frame, 
             text="Browse", 
             command=self.browse_folder,
-            font=("Arial", 9),
-            width=10
+            font=("Segoe UI", 9),
+            width=10,
+            bg=self.BG_MAIN,
+            fg=self.ACCENT,
+            activebackground=self.ACCENT,
+            activeforeground=self.TEXT_DARK,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.BORDER_SUBTLE,
+            cursor="hand2"
         )
         browse_btn.pack(side="right", padx=(5, 0))
         
+        # Browse button hover effects
+        def browse_enter(e):
+            browse_btn.config(bg=self.ACCENT, fg=self.TEXT_DARK, highlightbackground=self.ACCENT)
+        def browse_leave(e):
+            browse_btn.config(bg=self.BG_MAIN, fg=self.ACCENT, highlightbackground=self.BORDER_SUBTLE)
+        browse_btn.bind("<Enter>", browse_enter)
+        browse_btn.bind("<Leave>", browse_leave)
+        
         # Progress Bar Frame
-        progress_frame = tk.Frame(self.root)
+        progress_frame = tk.Frame(self.root, bg=self.BG_CARD)
         progress_frame.pack(pady=10, padx=20, fill="x")
         
         self.progress_label = tk.Label(
             progress_frame, 
             text="Ready to download", 
-            font=("Arial", 9),
-            fg="gray"
+            font=("Segoe UI", 9),
+            bg=self.BG_CARD,
+            fg=self.TEXT_MUTED
         )
         self.progress_label.pack(anchor="w")
         
+        # Progress bar (no border)
         self.progress_bar = ttk.Progressbar(
             progress_frame, 
             mode='determinate',
-            length=760
+            length=760,
+            style="Midnight.Horizontal.TProgressbar"
         )
         self.progress_bar.pack(fill="x", pady=(5, 0))
         
         # Button Frame
-        button_frame = tk.Frame(self.root)
+        button_frame = tk.Frame(self.root, bg=self.BG_CARD)
         button_frame.pack(pady=20)
         
-        self.download_btn = tk.Button(
+        # Create rounded buttons using Canvas
+        self.download_btn = self.create_rounded_button(
             button_frame,
-            text="Download",
+            text="Start Download",
             command=self.start_download,
-            font=("Arial", 12, "bold"),
-            bg="#4CAF50",
-            fg="white",
-            width=15,
-            height=2
+            bg_color=self.ACCENT,
+            hover_color=self.ACCENT_STRONG,
+            text_color=self.TEXT_DARK,
+            width=140,
+            height=40
         )
         self.download_btn.pack(side="left", padx=10)
         
-        self.cancel_btn = tk.Button(
+        self.cancel_btn = self.create_rounded_button(
             button_frame,
-            text="Cancel",
+            text="Stop Download",
             command=self.cancel_download,
-            font=("Arial", 12, "bold"),
-            bg="#f44336",
-            fg="white",
-            width=15,
-            height=2,
+            bg_color=self.DANGER,
+            hover_color="#e55a6f",
+            text_color="white",
+            width=140,
+            height=40,
             state="disabled"
         )
         self.cancel_btn.pack(side="left", padx=10)
         
         # Success Message Frame (initially hidden)
-        self.success_frame = tk.Frame(self.root, bg="#e8f5e9", relief=tk.RAISED, bd=2)
+        self.success_frame = tk.Frame(
+            self.root, 
+            bg=self.BG_MAIN, 
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=self.BORDER_SUBTLE
+        )
         self.success_frame.pack(pady=20, padx=20, fill="x", after=button_frame)
         self.success_frame.pack_forget()  # Hide initially
         
@@ -241,9 +458,8 @@ class YouTubeDownloader:
                 self.reset_ui()
                 return
         
-        # Get path to yt-dlp.exe
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        yt_dlp_path = os.path.join(script_dir, "yt-dlp.exe")
+        # Get path to yt-dlp.exe (works in both dev and PyInstaller bundled mode)
+        yt_dlp_path = self.get_resource_path("yt-dlp.exe")
         
         if not os.path.exists(yt_dlp_path):
             messagebox.showerror("Error", f"yt-dlp.exe not found at: {yt_dlp_path}")
@@ -305,18 +521,18 @@ class YouTubeDownloader:
                             progress_reached_100 = True
                             # Check if process is still running (merging/processing)
                             if self.download_process.poll() is None:
-                                self.progress_label.config(text="Stand by - finishing up...", fg="orange")
+                                self.progress_label.config(text="Stand by - finishing up...", fg=self.DANGER)
                             else:
-                                self.progress_label.config(text=f"Downloading... {progress:.1f}%")
+                                self.progress_label.config(text=f"Downloading... {progress:.1f}%", fg=self.ACCENT)
                         else:
-                            self.progress_label.config(text=f"Downloading... {progress:.1f}%")
+                            self.progress_label.config(text=f"Downloading... {progress:.1f}%", fg=self.ACCENT)
                     else:
                         # If we hit 100% and process is still running, show finishing message
                         if progress_reached_100 and self.download_process.poll() is None:
                             if '[Merger]' in line or '[ExtractAudio]' in line or 'Merging' in line:
-                                self.progress_label.config(text="Stand by - finishing up...", fg="orange")
+                                self.progress_label.config(text="Stand by - finishing up...", fg=self.DANGER)
                             elif '[download]' not in line.lower():
-                                self.progress_label.config(text="Stand by - finishing up...", fg="orange")
+                                self.progress_label.config(text="Stand by - finishing up...", fg=self.DANGER)
                         else:
                             # Update label with current status
                             if '[download]' in line.lower():
@@ -330,7 +546,7 @@ class YouTubeDownloader:
             if self.is_downloading:
                 if self.download_process.returncode == 0:
                     self.progress_bar['value'] = 100
-                    self.progress_label.config(text="Download completed successfully!", fg="green")
+                    self.progress_label.config(text="Download completed successfully!", fg=self.SUCCESS)
                     
                     # If we don't have the file path yet, try to find it
                     if not self.downloaded_file_path:
@@ -357,14 +573,14 @@ class YouTubeDownloader:
                     # Show success message in the UI (on main thread)
                     self.root.after(0, self.show_success_message)
                 else:
-                    self.progress_label.config(text="Download failed", fg="red")
+                    self.progress_label.config(text="Download failed", fg=self.DANGER)
                     messagebox.showerror("Error", "Download failed. Please check the URL and try again.")
                     self.reset_ui()
             
         except Exception as e:
             if self.is_downloading:
                 messagebox.showerror("Error", f"An error occurred: {str(e)}")
-                self.progress_label.config(text="Error occurred", fg="red")
+                self.progress_label.config(text="Error occurred", fg=self.DANGER)
                 self.reset_ui()
             else:
                 self.reset_ui()
@@ -383,10 +599,10 @@ class YouTubeDownloader:
         self.downloaded_filename = None
         
         self.is_downloading = True
-        self.download_btn.config(state="disabled")
-        self.cancel_btn.config(state="normal")
+        self.download_btn.update_state("disabled")
+        self.cancel_btn.update_state("normal")
         self.progress_bar['value'] = 0
-        self.progress_label.config(text="Starting download...", fg="blue")
+        self.progress_label.config(text="Starting download...", fg=self.ACCENT)
         
         # Start download in separate thread
         thread = threading.Thread(target=self.download_video, daemon=True)
@@ -397,7 +613,7 @@ class YouTubeDownloader:
         if self.download_process and self.is_downloading:
             self.download_process.terminate()
             self.is_downloading = False
-            self.progress_label.config(text="Download cancelled", fg="orange")
+            self.progress_label.config(text="Download cancelled", fg=self.DANGER)
             messagebox.showinfo("Cancelled", "Download has been cancelled.")
             self.reset_ui()
     
@@ -411,14 +627,14 @@ class YouTubeDownloader:
         success_title = tk.Label(
             self.success_frame,
             text="Your video downloaded successfully!",
-            font=("Arial", 12, "bold"),
-            bg="#e8f5e9",
-            fg="#2e7d32"
+            font=("Segoe UI", 12, "bold"),
+            bg=self.BG_MAIN,
+            fg=self.ACCENT  # Same blue as buttons/border
         )
         success_title.pack(anchor="w", pady=(10, 5), padx=10)
         
         # Details frame
-        details_frame = tk.Frame(self.success_frame, bg="#e8f5e9")
+        details_frame = tk.Frame(self.success_frame, bg=self.BG_MAIN)
         details_frame.pack(fill="x", padx=10, pady=5)
         
         # Title
@@ -426,8 +642,9 @@ class YouTubeDownloader:
             title_label = tk.Label(
                 details_frame,
                 text=f"Title: {self.video_title}",
-                font=("Arial", 10),
-                bg="#e8f5e9",
+                font=("Segoe UI", 10),
+                bg=self.BG_MAIN,
+                fg=self.TEXT_MAIN,
                 anchor="w"
             )
             title_label.pack(anchor="w", pady=2)
@@ -435,10 +652,10 @@ class YouTubeDownloader:
             title_label = tk.Label(
                 details_frame,
                 text="Title: (Not available)",
-                font=("Arial", 10),
-                bg="#e8f5e9",
-                anchor="w",
-                fg="gray"
+                font=("Segoe UI", 10),
+                bg=self.BG_MAIN,
+                fg=self.TEXT_MUTED,
+                anchor="w"
             )
             title_label.pack(anchor="w", pady=2)
         
@@ -447,8 +664,9 @@ class YouTubeDownloader:
             filename_label = tk.Label(
                 details_frame,
                 text=f"Filename: {self.downloaded_filename}",
-                font=("Arial", 10),
-                bg="#e8f5e9",
+                font=("Segoe UI", 10),
+                bg=self.BG_MAIN,
+                fg=self.TEXT_MAIN,
                 anchor="w"
             )
             filename_label.pack(anchor="w", pady=2)
@@ -456,15 +674,15 @@ class YouTubeDownloader:
             filename_label = tk.Label(
                 details_frame,
                 text="Filename: (Not available)",
-                font=("Arial", 10),
-                bg="#e8f5e9",
-                anchor="w",
-                fg="gray"
+                font=("Segoe UI", 10),
+                bg=self.BG_MAIN,
+                fg=self.TEXT_MUTED,
+                anchor="w"
             )
             filename_label.pack(anchor="w", pady=2)
         
         # Location with clickable folder icon
-        location_row = tk.Frame(details_frame, bg="#e8f5e9")
+        location_row = tk.Frame(details_frame, bg=self.BG_MAIN)
         location_row.pack(anchor="w", pady=2, fill="x")
         
         if self.downloaded_file_path:
@@ -474,21 +692,22 @@ class YouTubeDownloader:
             folder_link = tk.Label(
                 location_row,
                 text="📁",
-                font=("Arial", 12),
-                bg="#e8f5e9",
-                fg="#1976d2",
+                font=("Segoe UI", 12),
+                bg=self.BG_MAIN,
+                fg=self.ACCENT,
                 cursor="hand2"
             )
             folder_link.pack(side="left", padx=(0, 5))
             folder_link.bind("<Button-1>", lambda e, p=location_path: self.open_file_location(p))
-            folder_link.bind("<Enter>", lambda e: folder_link.config(fg="#0d47a1"))
-            folder_link.bind("<Leave>", lambda e: folder_link.config(fg="#1976d2"))
+            folder_link.bind("<Enter>", lambda e: folder_link.config(fg=self.ACCENT_STRONG))
+            folder_link.bind("<Leave>", lambda e: folder_link.config(fg=self.ACCENT))
             
             location_label = tk.Label(
                 location_row,
                 text=f"Location: {location_path}",
-                font=("Arial", 10),
-                bg="#e8f5e9",
+                font=("Segoe UI", 10),
+                bg=self.BG_MAIN,
+                fg=self.TEXT_MAIN,
                 anchor="w",
                 wraplength=650
             )
@@ -497,11 +716,11 @@ class YouTubeDownloader:
             location_label = tk.Label(
                 location_row,
                 text=f"Location: {self.save_path.get()}",
-                font=("Arial", 10),
-                bg="#e8f5e9",
+                font=("Segoe UI", 10),
+                bg=self.BG_MAIN,
+                fg=self.TEXT_MUTED,
                 anchor="w",
-                wraplength=700,
-                fg="gray"
+                wraplength=700
             )
             location_label.pack(side="left", fill="x", expand=True)
         
@@ -524,11 +743,11 @@ class YouTubeDownloader:
         """Reset UI to initial state"""
         self.is_downloading = False
         self.download_process = None
-        self.download_btn.config(state="normal")
-        self.cancel_btn.config(state="disabled")
+        self.download_btn.update_state("normal")
+        self.cancel_btn.update_state("disabled")
         if self.progress_bar['value'] != 100:
             self.progress_bar['value'] = 0
-            self.progress_label.config(text="Ready to download", fg="gray")
+            self.progress_label.config(text="Ready to download", fg=self.TEXT_MUTED)
         
         # Hide success frame
         self.success_frame.pack_forget()
